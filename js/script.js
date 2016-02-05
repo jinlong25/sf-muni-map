@@ -17,27 +17,6 @@ var PointScaleReference = {
 		22: '9'
 }
 
-// var geojson = {
-// 	'type': 'FeatureCollection',
-// 	'features': [
-// 		{
-// 			'type': 'Feature',
-//       'geometry': {
-//         'type': 'Point',
-//         'coordinates': [
-//           -122.394494486, 37.787303162]
-//       }
-//     },
-// 		{
-// 			'type': 'Feature',
-//       'geometry': {
-//         'type': 'Point',
-//         'coordinates': [-122.392949898, 37.786072479]
-//     	}
-// 		}
-// 	]
-// };
-
 //set sf bbox
 var sf = {
 	'type': 'FeatureCollection',
@@ -61,7 +40,7 @@ var sf = {
 
 //setup map
 var map = L.mapbox.map('map', 'mapbox.dark')
-	.setView([37.7833, -122.4167], 13);
+	.setView([37.756646, -122.449066], 13);
 
 //create svg
 var svg = d3.select(map.getPanes().overlayPane).append('svg');
@@ -96,6 +75,7 @@ $.ajax({
 				'properties': {}
 			};
 			d.geometry.coordinates = [$(e).attr('lon'), $(e).attr('lat')];
+			d.properties.busId = $(e).attr('id');
 			d.properties.routeTag = $(e).attr('routeTag');
 			d.properties.dirTag = $(e).attr('routeTag');
 			d.properties.secsSinceReport = $(e).attr('secsSinceReport');
@@ -110,6 +90,10 @@ $.ajax({
 		var features = g.selectAll('path')
 			.data(busGeo.features)
 			.enter().append('path')
+			.attr('class', 'bus')
+			.attr('id', function(d) {
+				return d.properties.busId;
+			}) //TODO add more attrs
 			.style('fill', 'yellow')
 			.style('stroke', '#888');
 
@@ -132,11 +116,58 @@ $.ajax({
 			g.attr('transform', 'translate(' + -topLeft[0] + ',' + -topLeft[1] + ')');
 
 			//update path
-			path.pointRadius(PointScaleReference[map.getZoom()])
+			path.pointRadius(PointScaleReference[map.getZoom()]);
 			features.attr('d', path);
 		}
 	}
 });
+
+function updateLocation() {
+	$.ajax({
+		type: 'GET',
+		dataType: 'xml',
+		url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=vehicleLocations&a=sf-muni&r=N&t=0',
+		success: function(xml, textStatus) {
+			var buses = $(xml).find('vehicle');
+
+			//refactor vehicle info into GeoJSON
+			buses.each(function(i, e) {
+				d = {
+					'type': 'Feature',
+					'geometry': {
+						'type': 'Point',
+						'coordinates': []
+					},
+					'properties': {}
+				};
+				d.geometry.coordinates = [$(e).attr('lon'), $(e).attr('lat')];
+				d.properties.busId = $(e).attr('id');
+				d.properties.routeTag = $(e).attr('routeTag');
+				d.properties.dirTag = $(e).attr('routeTag');
+				d.properties.secsSinceReport = $(e).attr('secsSinceReport');
+				d.properties.predictable = $(e).attr('predictable');
+				d.properties.heading = $(e).attr('heading');
+				d.properties.speedKmHr = $(e).attr('speedKmHr');
+				d.properties.leadingVehicleId = $(e).attr('leadingVehicleId');
+				busGeo.features.push(d);
+			});
+
+			//update bus locations
+			busGeo.features.forEach(function(d) {
+				if(d.properties.secsSinceReport < 10) {
+					d3.select('.bus[id="' + d.properties.busId + '"]')
+						.style('fill', 'red')
+						.transition()
+						.duration(10000)
+						.attr('d', path);
+					console.log(d.properties.busId + ' updated');
+				}
+			});
+		}
+	});
+}
+
+setInterval(updateLocation, 30000);
 
 //project spatial features to mapbox map
 function projectPoint(x, y) {
