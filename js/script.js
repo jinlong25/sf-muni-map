@@ -1,43 +1,59 @@
 //define mapbox token
 L.mapbox.accessToken = 'pk.eyJ1IjoiamlubG9uZyIsImEiOiJhMWUzNzk1MTEyNTUyNzkyNzBjZWUzYWMwODM2ZjgyZiJ9.youixT7oBlwLEwXC9q3P3w';
 
-var geojson = {
-	"type": "FeatureCollection",
-	"features": [
-		{
-			"type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [
-          -122.394494486, 37.787303162]
-      }
-    },
-		{
-			"type": "Feature",
-      "geometry": {
-        "type": "Point",
-        "coordinates": [-122.392949898, 37.786072479]
-    	}
-		}
-	]
-};
+var PointScaleReference = {
+		10: '0.05',
+		11: '0.2',
+		12: '0.5',
+		13: '1.9',
+		14: '2.8',
+		15: '3.5',
+		16: '4.2',
+		17: '6',
+		18: '8',
+		19: '9',
+		20: '9',
+		21: '9',
+		22: '9'
+}
+
+// var geojson = {
+// 	'type': 'FeatureCollection',
+// 	'features': [
+// 		{
+// 			'type': 'Feature',
+//       'geometry': {
+//         'type': 'Point',
+//         'coordinates': [
+//           -122.394494486, 37.787303162]
+//       }
+//     },
+// 		{
+// 			'type': 'Feature',
+//       'geometry': {
+//         'type': 'Point',
+//         'coordinates': [-122.392949898, 37.786072479]
+//     	}
+// 		}
+// 	]
+// };
 
 //set sf bbox
 var sf = {
-	"type": "FeatureCollection",
-	"features": [
+	'type': 'FeatureCollection',
+	'features': [
 		{
-			"type": "Feature",
-			"geometry": {
-				"type": "Point",
-				"coordinates": [-122.515149, 37.812780]
+			'type': 'Feature',
+			'geometry': {
+				'type': 'Point',
+				'coordinates': [-122.515149, 37.812780]
 			}
 		},
 		{
-			"type": "Feature",
-			"geometry": {
-				"type": "Point",
-				"coordinates": [-122.352600, 37.712321]
+			'type': 'Feature',
+			'geometry': {
+				'type': 'Point',
+				'coordinates': [-122.352600, 37.712321]
 			}
 		}
 	]
@@ -53,36 +69,74 @@ var g = svg.append('g').attr('class', 'leaflet-zoom-hide');
 
 //define transform function
 var transform = d3.geo.transform({ point: projectPoint });
-var path = d3.geo.path().projection(transform).pointRadius(8);
+var path = d3.geo.path().projection(transform);
 
-//draw points
-var features = g.selectAll('path')
-	.data(geojson.features)
-	.enter().append('path')
-	.style('fill', 'yellow')
-	.style('stroke', '#888');
+var busGeo = {
+	'type': 'FeatureCollection',
+	'features': []
+};
 
-map.on('viewreset', reset);
-reset();
+//retrieve data
+$.ajax({
+	type: 'GET',
+	dataType: 'xml',
+	url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=vehicleLocations&a=sf-muni&r=N&t=0',
+	success: function(xml, textStatus) { //TODO add error handling case
+		//extracting all vehicle info
+		var buses = $(xml).find('vehicle');
 
-function reset() {
-	//get bbox
-	var bounds = path.bounds(sf),
-	    topLeft = bounds[0],
-	    bottomRight = bounds[1];
+		//refactor vehicle info into GeoJSON
+		buses.each(function(i, e) {
+			d = {
+				'type': 'Feature',
+				'geometry': {
+					'type': 'Point',
+					'coordinates': []
+				},
+				'properties': {}
+			};
+			d.geometry.coordinates = [$(e).attr('lon'), $(e).attr('lat')];
+			d.properties.routeTag = $(e).attr('routeTag');
+			d.properties.dirTag = $(e).attr('routeTag');
+			d.properties.secsSinceReport = $(e).attr('secsSinceReport');
+			d.properties.predictable = $(e).attr('predictable');
+			d.properties.heading = $(e).attr('heading');
+			d.properties.speedKmHr = $(e).attr('speedKmHr');
+			d.properties.leadingVehicleId = $(e).attr('leadingVehicleId');
+			busGeo.features.push(d);
+		});
 
-	//define svg dimensions
-	svg.attr("width", bottomRight[0] - topLeft[0])
-	  .attr("height", bottomRight[1] - topLeft[1])
-	  .style("left", topLeft[0] + "px")
-	  .style("top", topLeft[1] + "px");
+		//draw points
+		var features = g.selectAll('path')
+			.data(busGeo.features)
+			.enter().append('path')
+			.style('fill', 'yellow')
+			.style('stroke', '#888');
 
-	//translate g element to align with basemap
-	g.attr("transform", "translate(" + -topLeft[0] + "," + -topLeft[1] + ")");
+		map.on('viewreset', reset);
+		reset();
 
-	//update path
-	features.attr('d', path);
-}
+		function reset() {
+			//get bbox
+			var bounds = path.bounds(sf),
+			    topLeft = bounds[0],
+			    bottomRight = bounds[1];
+
+			//define svg dimensions
+			svg.attr('width', bottomRight[0] - topLeft[0])
+			  .attr('height', bottomRight[1] - topLeft[1])
+			  .style('left', topLeft[0] + 'px')
+			  .style('top', topLeft[1] + 'px');
+
+			//translate g element to align with basemap
+			g.attr('transform', 'translate(' + -topLeft[0] + ',' + -topLeft[1] + ')');
+
+			//update path
+			path.pointRadius(PointScaleReference[map.getZoom()])
+			features.attr('d', path);
+		}
+	}
+});
 
 //project spatial features to mapbox map
 function projectPoint(x, y) {
