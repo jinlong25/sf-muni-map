@@ -50,10 +50,21 @@ var g = svg.append('g').attr('class', 'leaflet-zoom-hide');
 var transform = d3.geo.transform({ point: projectPoint });
 var path = d3.geo.path().projection(transform);
 
+//create a GeoJSON for buses
 var busGeo = {
 	'type': 'FeatureCollection',
 	'features': []
 };
+
+//define function that generate lines
+var makeLine = d3.svg.line()
+	.interpolate('linear')
+	.x(function(d) {
+			return applyLatLngToLayer(d).x
+	})
+	.y(function(d) {
+			return applyLatLngToLayer(d).y
+	});
 
 //retrieve data
 $.ajax({
@@ -86,6 +97,8 @@ $.ajax({
 			busGeo.features.push(d);
 		});
 
+		console.log(buses.length + ' buses');
+
 		//draw points
 		var features = g.selectAll('path')
 			.data(busGeo.features)
@@ -93,8 +106,15 @@ $.ajax({
 			.attr('class', 'bus')
 			.attr('id', function(d) {
 				return d.properties.busId;
-			}) //TODO add more attrs
+			})
+			.attr('lon', function(d) {
+				return d.geometry.coordinates[0];
+			})
+			.attr('lat', function(d) {
+				return d.geometry.coordinates[1];
+			})//TODO add more attrs
 			.style('fill', 'yellow')
+			.style('opacity', 0.5)
 			.style('stroke', '#888');
 
 		map.on('viewreset', reset);
@@ -154,23 +174,56 @@ function updateLocation() {
 
 			//update bus locations
 			busGeo.features.forEach(function(d) {
-				if(d.properties.secsSinceReport < 10) {
-					d3.select('.bus[id="' + d.properties.busId + '"]')
-						.style('fill', 'red')
-						.transition()
-						.duration(10000)
-						.attr('d', path);
-					console.log(d.properties.busId + ' updated');
+				if(d.properties.secsSinceReport < 50) {//TODO lower this threshold
+					var oldCircle = d3.select('.bus[id="' + d.properties.busId + '"]'),
+					oldLon = oldCircle.attr('lon'),
+					oldLat = oldCircle.attr('lat'),
+					oldPoint = {'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [oldLon, oldLat]}},
+					displacement = [oldPoint, d];
+					if (oldPoint.geometry.coordinates != d.geometry.coordinates) {
+						// console.log(displacement);
+						var displacement = g.select('.displacement.bus-' + d.properties.busId)
+												.data([displacement])
+												.enter().append('path')
+												.attr('class', 'displacement bus-' + d.properties.busId)
+												.attr('d', makeLine)
+												.style('stroke', 'red');
+					}
+					// console.log(d.properties.busId + ' updated');
 				}
 			});
 		}
 	});
 }
 
-setInterval(updateLocation, 30000);
+// setInterval(updateLocation, 5000);
+setTimeout(updateLocation, 5000);
+
+function transition(path) {
+    path.transition()
+        .duration(7500)
+        .attrTween('stroke-dasharray', tweenDash);
+}
+
+function tweenDash() {
+	var l = path.node().getTotalLength();
+	return function(t) {
+		var marker = d3.select('#marker');
+		var p = path.node().getPiontAtLength(t * l);
+		marker.attr('transform', 'translate(' + p.x + ',' + p.y + ')');
+		return 'black';
+	}
+}
 
 //project spatial features to mapbox map
 function projectPoint(x, y) {
   var point = map.latLngToLayerPoint(new L.LatLng(y, x));
   this.stream.point(point.x, point.y);
+}
+
+//project piont to layer
+function applyLatLngToLayer(d) {
+    var y = d.geometry.coordinates[1]
+    var x = d.geometry.coordinates[0]
+    return map.latLngToLayerPoint(new L.LatLng(y, x))
 }
