@@ -5,9 +5,9 @@ var PointScaleReference = {
 		10: '0.05',
 		11: '0.2',
 		12: '0.5',
-		13: '1.9',
-		14: '2.8',
-		15: '3.5',
+		13: '3',
+		14: '3.5',
+		15: '4',
 		16: '4.2',
 		17: '6',
 		18: '8',
@@ -38,6 +38,8 @@ var sf = {
 	]
 }
 
+var features;
+
 //setup map
 var map = L.mapbox.map('map', 'mapbox.dark')
 	.setView([37.756646, -122.449066], 13);
@@ -49,12 +51,6 @@ var g = svg.append('g').attr('class', 'leaflet-zoom-hide');
 //define transform function
 var transform = d3.geo.transform({ point: projectPoint });
 var path = d3.geo.path().projection(transform);
-
-//create a GeoJSON for buses
-var busGeo = {
-	'type': 'FeatureCollection',
-	'features': []
-};
 
 //define function that generate lines
 var makeLine = d3.svg.line()
@@ -72,36 +68,13 @@ $.ajax({
 	dataType: 'xml',
 	url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=vehicleLocations&a=sf-muni&r=N&t=0',
 	success: function(xml, textStatus) { //TODO add error handling case
-		//extracting all vehicle info
-		var buses = $(xml).find('vehicle');
-
 		//refactor vehicle info into GeoJSON
-		buses.each(function(i, e) {
-			d = {
-				'type': 'Feature',
-				'geometry': {
-					'type': 'Point',
-					'coordinates': []
-				},
-				'properties': {}
-			};
-			d.geometry.coordinates = [$(e).attr('lon'), $(e).attr('lat')];
-			d.properties.busId = $(e).attr('id');
-			d.properties.routeTag = $(e).attr('routeTag');
-			d.properties.dirTag = $(e).attr('routeTag');
-			d.properties.secsSinceReport = $(e).attr('secsSinceReport');
-			d.properties.predictable = $(e).attr('predictable');
-			d.properties.heading = $(e).attr('heading');
-			d.properties.speedKmHr = $(e).attr('speedKmHr');
-			d.properties.leadingVehicleId = $(e).attr('leadingVehicleId');
-			busGeo.features.push(d);
-		});
-
-		console.log(buses.length + ' buses');
+		var geojson = parsingXML(xml);
+		console.log(geojson.features.length + ' buses');
 
 		//draw points
-		var features = g.selectAll('path')
-			.data(busGeo.features)
+		features = g.selectAll('path')
+			.data(geojson.features)
 			.enter().append('path')
 			.attr('class', 'bus')
 			.attr('id', function(d) {
@@ -138,6 +111,8 @@ $.ajax({
 			//update path
 			path.pointRadius(PointScaleReference[map.getZoom()]);
 			features.attr('d', path);
+
+			console.log(map.getZoom());
 		}
 	}
 });
@@ -148,56 +123,24 @@ function updateLocation() {
 		dataType: 'xml',
 		url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=vehicleLocations&a=sf-muni&r=N&t=0',
 		success: function(xml, textStatus) {
-			var buses = $(xml).find('vehicle');
+			updatedGeoJSON = parsingXML(xml);
 
-			//refactor vehicle info into GeoJSON
-			buses.each(function(i, e) {
-				d = {
-					'type': 'Feature',
-					'geometry': {
-						'type': 'Point',
-						'coordinates': []
-					},
-					'properties': {}
-				};
-				d.geometry.coordinates = [$(e).attr('lon'), $(e).attr('lat')];
-				d.properties.busId = $(e).attr('id');
-				d.properties.routeTag = $(e).attr('routeTag');
-				d.properties.dirTag = $(e).attr('routeTag');
-				d.properties.secsSinceReport = $(e).attr('secsSinceReport');
-				d.properties.predictable = $(e).attr('predictable');
-				d.properties.heading = $(e).attr('heading');
-				d.properties.speedKmHr = $(e).attr('speedKmHr');
-				d.properties.leadingVehicleId = $(e).attr('leadingVehicleId');
-				busGeo.features.push(d);
-			});
-
-			//update bus locations
-			busGeo.features.forEach(function(d) {
-				if(d.properties.secsSinceReport < 50) {//TODO lower this threshold
-					var oldCircle = d3.select('.bus[id="' + d.properties.busId + '"]'),
-					oldLon = oldCircle.attr('lon'),
-					oldLat = oldCircle.attr('lat'),
-					oldPoint = {'type': 'Feature', 'geometry': {'type': 'Point', 'coordinates': [oldLon, oldLat]}},
-					displacement = [oldPoint, d];
-					if (oldPoint.geometry.coordinates != d.geometry.coordinates) {
-						// console.log(displacement);
-						var displacement = g.select('.displacement.bus-' + d.properties.busId)
-												.data([displacement])
-												.enter().append('path')
-												.attr('class', 'displacement bus-' + d.properties.busId)
-												.attr('d', makeLine)
-												.style('stroke', 'red');
-					}
-					// console.log(d.properties.busId + ' updated');
-				}
-			});
+			features.data(updatedGeoJSON.features)
+				.attr('lon', function(d) {
+					return d.geometry.coordinates[0];
+				})
+				.attr('lat', function(d) {
+					return d.geometry.coordinates[1];
+				})//TODO add more attrs
+				.transition()
+				.duration(5000)
+				.attr('d', path);
 		}
 	});
 }
 
-// setInterval(updateLocation, 5000);
-setTimeout(updateLocation, 5000);
+setInterval(updateLocation, 5000);
+// setTimeout(updateLocation, 5000);
 
 function transition(path) {
     path.transition()
@@ -226,4 +169,37 @@ function applyLatLngToLayer(d) {
     var y = d.geometry.coordinates[1]
     var x = d.geometry.coordinates[0]
     return map.latLngToLayerPoint(new L.LatLng(y, x))
+}
+
+//parsing XML response into GeoJSON objects
+function parsingXML(xml) {
+	var output = {
+		'type': 'FeatureCollection',
+		'features': []
+	};
+
+	var vehicles = $(xml).find('vehicle');
+
+	vehicles.each(function(i, e) {
+		d = {
+			'type': 'Feature',
+			'geometry': {
+				'type': 'Point',
+				'coordinates': []
+			},
+			'properties': {}
+		};
+		d.geometry.coordinates = [$(e).attr('lon'), $(e).attr('lat')];
+		d.properties.busId = $(e).attr('id');
+		d.properties.routeTag = $(e).attr('routeTag');
+		d.properties.dirTag = $(e).attr('routeTag');
+		d.properties.secsSinceReport = $(e).attr('secsSinceReport');
+		d.properties.predictable = $(e).attr('predictable');
+		d.properties.heading = $(e).attr('heading');
+		d.properties.speedKmHr = $(e).attr('speedKmHr');
+		d.properties.leadingVehicleId = $(e).attr('leadingVehicleId');
+		output.features.push(d);
+	});
+
+	return output;
 }
