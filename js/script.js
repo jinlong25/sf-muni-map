@@ -1,6 +1,11 @@
 //define mapbox token
 L.mapbox.accessToken = 'pk.eyJ1IjoiamlubG9uZyIsImEiOiJhMWUzNzk1MTEyNTUyNzkyNzBjZWUzYWMwODM2ZjgyZiJ9.youixT7oBlwLEwXC9q3P3w';
 
+//define vars
+var features,
+	geojson,
+	currentZoomLevel = 13;
+
 var PointScaleReference = {
 		10: '0.05',
 		11: '0.2',
@@ -38,11 +43,9 @@ var sf = {
 	]
 }
 
-var features;
-
 //setup map
 var map = L.mapbox.map('map', 'mapbox.dark')
-	.setView([37.756646, -122.449066], 13);
+	.setView([37.756646, -122.449066], currentZoomLevel);
 
 //create svg
 var svg = d3.select(map.getPanes().overlayPane).append('svg');
@@ -69,7 +72,7 @@ $.ajax({
 	url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=vehicleLocations&a=sf-muni&r=N&t=0',
 	success: function(xml, textStatus) { //TODO add error handling case
 		//refactor vehicle info into GeoJSON
-		var geojson = parsingXML(xml);
+		geojson = parsingXML(xml);
 		console.log(geojson.features.length + ' buses');
 
 		//draw points
@@ -112,7 +115,7 @@ $.ajax({
 			path.pointRadius(PointScaleReference[map.getZoom()]);
 			features.attr('d', path);
 
-			console.log(map.getZoom());
+			console.log('Zoom level: ' + map.getZoom());
 		}
 	}
 });
@@ -123,9 +126,36 @@ function updateLocation() {
 		dataType: 'xml',
 		url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=vehicleLocations&a=sf-muni&r=N&t=0',
 		success: function(xml, textStatus) {
-			updatedGeoJSON = parsingXML(xml);
+			var updatedGeoJSON = parsingXML(xml);
 
-			features.data(updatedGeoJSON.features)
+			//update stored data
+			updatedGeoJSON.features.forEach(function(d) {
+				//get the current bus id
+				var thisId = d.properties.busId;
+
+				//search and append to stored data
+				for(var i = 0; i < geojson.features.length; i++) {
+					var thisProp = geojson.features[i].properties;
+					if (thisId === thisProp.busId) {
+						//update geometry
+						geojson.features[i].geometry.coordinates = d.geometry.coordinates;
+
+						//update properties
+						thisProp.dirTag = d.properties.dirTag;
+						thisProp.predictable = d.properties.predictable;
+						thisProp.leadingVehicleId = d.properties.leadingVehicleId;
+						thisProp.routeTag = d.properties.routeTag;
+						thisProp.secsSinceReport = d.properties.secsSinceReport;
+						thisProp.coords.push(d.properties.coords[0]);
+						thisProp.heading.push(d.properties.heading[0]);
+						thisProp.speedKmHr.push(d.properties.speedKmHr[0]);
+					}
+					continue;
+				}
+			});
+
+			//update data binding to the DOM
+			features.data(geojson.features)
 				.attr('lon', function(d) {
 					return d.geometry.coordinates[0];
 				})
@@ -140,7 +170,7 @@ function updateLocation() {
 }
 
 setInterval(updateLocation, 5000);
-// setTimeout(updateLocation, 5000);
+// setTimeout(updateLocation, 3000);
 
 function transition(path) {
     path.transition()
@@ -190,13 +220,14 @@ function parsingXML(xml) {
 			'properties': {}
 		};
 		d.geometry.coordinates = [$(e).attr('lon'), $(e).attr('lat')];
+		d.properties.coords = [d.geometry.coordinates]
 		d.properties.busId = $(e).attr('id');
 		d.properties.routeTag = $(e).attr('routeTag');
 		d.properties.dirTag = $(e).attr('routeTag');
 		d.properties.secsSinceReport = $(e).attr('secsSinceReport');
 		d.properties.predictable = $(e).attr('predictable');
-		d.properties.heading = $(e).attr('heading');
-		d.properties.speedKmHr = $(e).attr('speedKmHr');
+		d.properties.heading = [$(e).attr('heading')];
+		d.properties.speedKmHr = [$(e).attr('speedKmHr')];
 		d.properties.leadingVehicleId = $(e).attr('leadingVehicleId');
 		output.features.push(d);
 	});
