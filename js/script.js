@@ -91,7 +91,9 @@ $.when(
 
 	//draw points
 	locs = g.selectAll('path.bus')
-		.data(locGeoJSON.features)
+		.data(locGeoJSON.features, function(d) {
+			return d.properties.busId;
+		})
 		.enter().append('path')
 		.attr('class', 'bus')
 		.attr('id', function(d) {
@@ -167,7 +169,9 @@ function updateVehicleLocation() {
 			});
 
 			//update data binding to the DOM
-			locs.data(locGeoJSON.features)
+			locs.data(locGeoJSON.features, function(d) {
+				return d.properties.busId;
+			})
 				.attr('lon', function(d) {
 					return d.geometry.coordinates[0];
 				})
