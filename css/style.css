@@ -5,3 +5,18 @@ body {
 #map {
 	position:absolute; top:0; bottom:0; width:100%;
 }
+
+.bus {
+	fill: red;
+	fill-opacity: 0.5;
+	stroke: yellow;
+	stroke-width: 10px;
+	stroke-opacity: 0.3;
+}
+
+.route {
+	stroke: blue;
+	fill: none;
+	opacity: 0.5;
+	/*stroke-dasharray: 3, 1;*/
+}
