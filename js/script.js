@@ -4,11 +4,14 @@ L.mapbox.accessToken = 'pk.eyJ1IjoiamlubG9uZyIsImEiOiJhMWUzNzk1MTEyNTUyNzkyNzBjZ
 //define vars
 var locs,
 	route,
+	bbox,
 	routeTag = 'F',
 	routeList,
 	locGeoJSON,
 	routeGeoJSON,
-	currentZoomLevel = 13;
+	currentZoomLevel = 13,
+	updateInterval = 5000,
+	duration = 5000;
 
 //define point size at all zoom scales
 var PointScaleReference = {10: '0.05', 11: '0.2', 12: '0.5', 13: '3', 14: '3.5', 15: '4', 16: '4.2', 17: '6', 18: '8', 19: '9', 20: '9',21: '9', 22: '9'}
@@ -18,8 +21,9 @@ var sf = { 'type': 'FeatureCollection', 'features': [ { 'type': 'Feature', 'geom
 { 'type': 'Feature', 'geometry': { 'type': 'Point', 'coordinates': [-122.352600, 37.712321] } } ] }
 
 //setup map
-var map = L.mapbox.map('map', 'mapbox.dark')
+var map = L.mapbox.map('map', 'mapbox.dark', {maxZoom: 16, minZoom: 12})
 	.setView([37.756646, -122.449066], currentZoomLevel);
+map.maxZoom = 14;
 
 //create svg
 var svg = d3.select(map.getPanes().overlayPane).append('svg');
@@ -30,37 +34,7 @@ var transform = d3.geo.transform({ point: projectPoint });
 var path = d3.geo.path().projection(transform);
 
 //retrieve route list
-$.ajax({
-	type: 'GET',
-	dataType: 'xml',
-	url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=routeList&a=sf-muni',
-	success: function(xml, textStatus) { //TODO add error handling case
-		//parse route list
-		routeList = parsingRouteList(xml);
-		console.log(routeList);
-
-		//populate route list into select box
-		var routeSelection = d3.select('#route_selection');
-		routeSelection.selectAll('option')
-			.data(routeList)
-			.enter().append('option')
-			.attr('value', function(d) { return d[0]; })
-			.text(function(d) { return d[1]; });
-
-		//update route
-		d3.select('#route_selection').on('change', function() {
-			//remove all buses and route
-			d3.selectAll('.bus').remove();
-			d3.selectAll('.route').remove();
-
-			//re-initialize buses and route
-			var options = document.getElementById('route_selection');
-			routeTag = options.options[options.selectedIndex].value;
-
-			initializeVehicleLocation(routeTag);
-		});
-	}
-});
+initializeRouteList();
 
 //retrieve data
 initializeVehicleLocation(routeTag);
@@ -68,8 +42,66 @@ initializeVehicleLocation(routeTag);
 //update vehicle locations every xx seconds
 setInterval(function() {
 	updateVehicleLocation(routeTag)
-}, 5000);
+}, updateInterval);
 // setTimeout(updateLocation, 3000);
+
+//create svg in info window
+var canvas = d3.select('#info_window').append('svg')
+	.attr('class', 'canvas')
+	.attr('width', 800)
+	.attr('height', 200)
+	.append('g')
+	.attr('transform', 'translate(10, 10)');
+
+//draw
+// Bus Route:
+// From ## to ##
+// # of fleet:
+// Active buses:
+//
+// canvas.
+
+// ------------------------------------------------------------------------------------------------------------------------
+// -----------------------------------------------------  functions -------------------------------------------------------
+// ------------------------------------------------------------------------------------------------------------------------
+//define a function to retrieve route list to populate select box
+function initializeRouteList() {
+	$.ajax({
+		type: 'GET',
+		dataType: 'xml',
+		url: 'http://webservices.nextbus.com/service/publicXMLFeed?command=routeList&a=sf-muni',
+		success: function(xml, textStatus) { //TODO add error handling case
+			//parse route list
+			routeList = parsingRouteList(xml);
+
+			//populate route list into select box
+			var routeSelection = d3.select('#route_selection');
+			routeSelection.selectAll('option')
+				.data(routeList)
+				.enter().append('option')
+				.attr('value', function(d) { return d[0]; })
+				.text(function(d) { return d[1]; });
+
+			//update route
+			d3.select('#route_selection').on('change', function() {
+
+				//remove all buses and route
+				d3.selectAll('.bus').remove();
+				d3.selectAll('.route').remove();
+
+				//re-initialize buses and route
+				var options = document.getElementById('route_selection');
+				routeTag = options.options[options.selectedIndex].value;
+
+				//call to initialize vehicle locations
+				initializeVehicleLocation(routeTag);
+			});
+
+			//set default route
+			// d3.select('option').attr('selected', 'N');
+		}
+	});
+}
 
 //define retrieve data function
 function initializeVehicleLocation(routeTag) {
@@ -94,6 +126,10 @@ function initializeVehicleLocation(routeTag) {
 			success: function(xml, textStatus) { //TODO add error handling case
 				//parse route response
 				routeGeoJSON = parsingRoute(xml);
+
+				//set map view based on route
+				bbox = turf.extent(routeGeoJSON);
+				map.fitBounds([[bbox[1], bbox[0]], [bbox[3], bbox[2]]]);
 			}
 		})
 	).then(function() {//all data ready at this point
@@ -120,6 +156,7 @@ function initializeVehicleLocation(routeTag) {
 
 		//define reset function to update map on viewrest
 		function reset() {
+			console.log(map.getZoom());
 			//get bbox
 			var bounds = path.bounds(sf),
 					topLeft = bounds[0],
@@ -135,12 +172,16 @@ function initializeVehicleLocation(routeTag) {
 			g.attr('transform', 'translate(' + -topLeft[0] + ',' + -topLeft[1] + ')');
 
 			//update path
-			path.pointRadius(PointScaleReference[map.getZoom()]);
-			locs.attr('d', path);
-			route.attr('d', path);
+			// path.pointRadius(PointScaleReference[map.getZoom()]);
+			path.pointRadius(3);
 
-			//print out zoom level for debugging
-			console.log('Zoom level: ' + map.getZoom());
+			locs.data(locGeoJSON.features, function(d) {
+				return d.properties.busId;
+			}).transition()
+				.duration(259)
+				.attr('d', path);
+
+			route.attr('d', path);
 		}
 	});
 }
@@ -154,7 +195,6 @@ function updateVehicleLocation(routeTag) {
 		success: function(xml, textStatus) {
 			//parse vehicle new locations
 			var updatedLocGeoJSON = parsingVehicleLoc(xml);
-			// console.log(updatedLocGeoJSON.features.length + ' buses');
 			console.log('updated');
 
 			//update stored data
@@ -195,7 +235,7 @@ function updateVehicleLocation(routeTag) {
 					return d.geometry.coordinates[1];
 				})//TODO add more attrs
 				.transition()
-				.duration(5000)
+				.duration(duration)
 				.attr('d', path);
 		}
 	});
