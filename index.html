@@ -10,10 +10,16 @@
 </head>
 <body>
 	<div id="map"></div>
-	<div class="title"><p>SF MUNI Map</p></div>
-	<div id="info_window">
-		<select id="route_selection" class="styled-select yellow semi-square"></select>
+	<div class="title"><h2>SF MUNI Map</h2></div>
+	<select id="route_selection" class="styled-select yellow semi-square"></select>
+	<div id="fleet_info_window" class="window">
+		<h3>Fleet Info</h3>
+		<p>Route: <spam id="route_name"></spam></p>
+		<p>From: <spam id="from_stop"></spam></p>
+		<p>To: <spam id="to_stop"></spam></p>
+		<p>Fleet size: <spam id="fleet_size"></spam></p>
 	</div>
+	<div id="speed_chart_window" class="window"><h3>Selected Bus Speed</h3></div>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/3.0.0-beta1/jquery.js"></script>
 	<script src="https://cdnjs.cloudflare.com/ajax/libs/d3/3.5.14/d3.js"></script>
 	<script src="https://api.tiles.mapbox.com/mapbox.js/plugins/turf/v2.0.0/turf.min.js"></script>

@@ -1,10 +1,59 @@
+* {
+	font-family: Avenir, sans-serif;
+	color: #fff;
+}
 body {
 	margin:0; padding:0;
+}
+
+h2 {
+	text-align: center;
+	font-size: 30px;
+}
+
+h3 {
+	text-align: center;
+	margin-bottom: 5px;
+}
+
+p {
+	padding-left: 30px;
+	margin-top: 3px;
+	margin-bottom: 3px;
+	font-size: 15px;
 }
 
 .canvas {
 	display: block;
 	margin: auto;
+}
+
+/*svg-wide style*/
+.axis path,
+.axis line {
+	fill: none;
+	stroke: #888;
+	shape-rendering: crispEdges;
+}
+
+.axis text {
+	font-family: sans-serif;
+	font-size: 10px;
+	fill: #fff;
+}
+
+.axis.label {
+	font-size: 10px;
+	fill: #fff;
+}
+
+.y.axis line {
+  stroke: #bbb;
+  opacity: 0.7;
+}
+
+.y.axis path {
+  stroke-width: 0;
 }
 
 #map {
@@ -16,13 +65,11 @@ body {
 
 div.title {
 	position: relative;
-	text-align: center;
   width: 60%;
   margin: 0 auto;
 	height: 80px;
 	line-height: 30px;
 	padding: 2px;
-	font-family: Avenir;
 	font-size: 26px;
 	color: #fff;
 	background: rgba(0, 0, 0, 0.6);
@@ -32,17 +79,30 @@ div.title {
 	pointer-events: none;
 }
 
-#info_window {
+.window {
 	position: absolute;
-	bottom: 28px;
-	left: 0;
-	right: 0;
+	bottom: 20px;
 	margin: 0 auto;
-	width: 100%;
-	height: 200px;
+	height: 160px;
 	background: rgba(0, 0, 0, 0.6);
 	box-sizing: border-box;
 	border-radius: 5px;
+}
+
+#speed_chart_window {
+	width: 300px;
+	right: 0;
+}
+
+#fleet_info_window {
+	width: 320px;
+	left: 0;
+}
+
+#route_selection {
+	position: absolute;
+	bottom: 180px;
+	left: 0;
 }
 
 .bus {
@@ -53,11 +113,19 @@ div.title {
 	stroke-opacity: 0.3;
 }
 
+.bus.selected {
+	stroke: #fff;
+}
+
 .route {
-	stroke: blue;
+	stroke: yellow;
 	fill: none;
-	opacity: 0.5;
-	/*stroke-dasharray: 3, 1;*/
+	opacity: 0.2;
+}
+
+.speed-line {
+	stroke: yellow;
+	fill: none;
 }
 
 /*revised after http://codepen.io/ericrasch/pen/zjDBx*/
