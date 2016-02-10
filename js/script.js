@@ -129,7 +129,7 @@ function initializeVehicleLocation(routeTag) {
 
 				//set map view based on route
 				bbox = turf.extent(routeGeoJSON);
-				map.fitBounds([[bbox[1], bbox[0]], [bbox[3], bbox[2]]]);
+				map.fitBounds([[bbox[1] - 0.025, bbox[0]], [bbox[3] + 0.025, bbox[2]]]);
 			}
 		})
 	).then(function() {//all data ready at this point
@@ -156,7 +156,6 @@ function initializeVehicleLocation(routeTag) {
 
 		//define reset function to update map on viewrest
 		function reset() {
-			console.log(map.getZoom());
 			//get bbox
 			var bounds = path.bounds(sf),
 					topLeft = bounds[0],
