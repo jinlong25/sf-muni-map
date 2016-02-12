@@ -20,3 +20,9 @@
    
    Dynamically enter and exit buses (points) when the number of buses changes between AJAX call.
 
+# Reference
+[1] D3 + Leaflet by Mike Bostock (https://bost.ocks.org/mike/leaflet/)
+
+[2] Leaflet map with d3.js elements that are overlaid on a map by d3noob (http://www.d3noob.org/2014/03/leaflet-map-with-d3js-elements-that-are.html)
+
+[3] Taxi Techblog 2: Leaflet, D3, and other Frontend Fun by Chris Whong (http://chriswhong.com/open-data/taxi-techblog-2-leaflet-d3-and-other-frontend-fun/)
